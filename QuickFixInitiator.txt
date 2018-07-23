@@ -1,0 +1,82 @@
+quickFIX01 - initiator
+2014年05月13日 15:27:04
+阅读数：1363
+一、首先到官网下载quickFIX源代码，编译连接，可以使用自带的某个例子作为框架进行修改
+
+二、找到配置文件  * ．cfg并打开， 修改文件中DataDictionary字段使其适应当前版本
+
+三、如果要连接的Acceptor需要用户名密码将字段添加到配置文件中以便程序可以获取
+
+       UserName=name
+      Password=123
+
+      根据约定配置SenderCompID、TargetCompID
+
+      BeginString = FIX（所使用的版本）
+
+根据需要进行修改以下字段
+
+ 如果使用stunnel则写本机IP和stunnel设置的端口号
+
+    SocketConnectHost   = IP　
+    SocketConnectPort   =  PORT
+
+其他字段根据需要进行修改
+
+四、对自带的例子程序进行改造
+
+//获取配置文件中的会话集
+FIX::SessionSettings settings( file );
+
+ //存储会话
+FIX::FileStoreFactory storeFactory(settings);
+//日志会话
+FIX::FileLogFactory logFactory(settings);
+Application application(settings);
+
+FIX::SocketInitiator initiator( application, storeFactory, settings,logFactory );
+initiator.start();
+application.run();
+
+initiator.stop();
+
+
+
+得到用户名密码
+
+std::set<FIX::SessionID> sessionIds = m_sessions.getSessions();
+const FIX::Dictionary& dict = m_sessions.get(*sessionIds.begin());
+m_username = dict.getString("UserName",false);
+m_password = dict.getString("Password",false);
+
+
+
+发送用户名密码
+
+void Application::toAdmin( FIX::Message& m, const FIX::SessionID& sessionID)
+{
+  if (FIX::MsgType_Logon == FIELD_GET_REF( m.getHeader(), MsgType)) {
+m.setField(FIX::FIELD::Username, m_username);
+        m.setField(FIX::FIELD::Password, m_password);
+}
+}
+
+
+
+封装消息
+
+ FIX44::MarketDataRequest message(
+FIX::MDReqID("1"),FIX::SubscriptionRequestType('1'),FIX::MarketDepth(10));
+FIX44::MarketDataRequest::NoMDEntryTypes group;
+group.set(FIX::MDEntryType('0'));
+message.addGroup(group);
+group.set(FIX::MDEntryType('1'));
+message.addGroup(group);
+FIX44::MarketDataRequest::NoRelatedSym group1;
+group1.set(FIX::SecurityID("4008"));
+group1.set(FIX::SecurityIDSource("8"));
+message.addGroup(group1);
+
+发送消息
+
+FIX::Session::sendToTarget(message, sessionID);
